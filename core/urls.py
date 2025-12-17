@@ -6,7 +6,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView , RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from llm.auth_views import (
@@ -30,6 +30,9 @@ urlpatterns = [
     path('api/', include('llm.urls')),
     path('api/auth/send-otp/', send_otp_api, name='api_send_otp'),
     path('api/auth/verify-otp/', verify_otp_api, name='api_verify_otp'),
+    path('favicon.ico', RedirectView.as_view(
+    url='/static/favicon.ico', permanent=True)),
+
     
     # Frontend pages (served via Django templates)
     path('', TemplateView.as_view(template_name='index.html'), name='home'),
