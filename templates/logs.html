@@ -1,0 +1,420 @@
+{% extends 'base.html' %}
+
+{% block title %}Request Logs - LLM Observability{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Request Logs</h1>
+            <p class="mt-1 text-slate-400">Browse and search through all LLM API requests</p>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Search by Request ID -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Request ID</label>
+                <input type="text" id="filter-request-id" placeholder="Search by ID..." 
+                       class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+            </div>
+            
+            <!-- Model Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Model</label>
+                <select id="filter-model" class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                    <option value="">All Models</option>
+                </select>
+            </div>
+            
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Status</label>
+                <select id="filter-status" class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                    <option value="">All Status</option>
+                    <option value="success">Success</option>
+                    <option value="error">Error</option>
+                </select>
+            </div>
+            
+            <!-- Date Range -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Date Range</label>
+                <select id="filter-date-range" class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                    <option value="1">Last 24 hours</option>
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="">All time</option>
+                </select>
+            </div>
+            
+            <!-- Search Button -->
+            <div class="flex items-end">
+                <button onclick="applyFilters()" class="w-full flex items-center justify-center px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Search
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Summary -->
+    <div class="flex items-center justify-between">
+        <p id="results-summary" class="text-slate-400 text-sm">Loading...</p>
+        <div class="flex items-center space-x-2">
+            <button onclick="previousPage()" id="btn-prev" disabled class="px-3 py-1 bg-slate-700 text-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600">
+                Previous
+            </button>
+            <span id="page-info" class="text-slate-400 text-sm">Page 1</span>
+            <button onclick="nextPage()" id="btn-next" class="px-3 py-1 bg-slate-700 text-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600">
+                Next
+            </button>
+        </div>
+    </div>
+    
+    <!-- Logs Table -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Request ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Tokens</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Latency</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Cost</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Timestamp</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-table" class="divide-y divide-slate-700">
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-slate-400">
+                            <div class="spinner mx-auto mb-4"></div>
+                            Loading logs...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Log Detail Modal -->
+<div id="log-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">Request Details</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="modal-content" class="p-6 overflow-y-auto max-h-[70vh]">
+            <!-- Content loaded dynamically -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentData = null;
+    
+    async function loadModels() {
+        try {
+            const models = await fetchAPI('/models/');
+            const select = document.getElementById('filter-model');
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to load models:', error);
+        }
+    }
+    
+    function buildQueryString() {
+        const params = new URLSearchParams();
+        
+        const requestId = document.getElementById('filter-request-id').value.trim();
+        const model = document.getElementById('filter-model').value;
+        const status = document.getElementById('filter-status').value;
+        const dateRange = document.getElementById('filter-date-range').value;
+        
+        if (requestId) params.append('request_id', requestId);
+        if (model) params.append('model', model);
+        if (status) params.append('status', status);
+        
+        if (dateRange) {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - parseInt(dateRange));
+            params.append('start_date', startDate.toISOString());
+            params.append('end_date', endDate.toISOString());
+        }
+        
+        params.append('page', currentPage);
+        params.append('page_size', 20);
+        
+        return params.toString();
+    }
+    
+    async function loadLogs() {
+        const tbody = document.getElementById('logs-table');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="px-6 py-12 text-center text-slate-400">
+                    <div class="spinner mx-auto mb-4"></div>
+                    Loading logs...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            const queryString = buildQueryString();
+            const data = await fetchAPI(`/logs/?${queryString}`);
+            currentData = data;
+            
+            const logs = data.results || data;
+            const count = data.count || logs.length;
+            
+            // Calculate pagination
+            const pageSize = 20;
+            totalPages = Math.ceil(count / pageSize);
+            
+            // Update summary
+            document.getElementById('results-summary').textContent = `Showing ${logs.length} of ${count} results`;
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+            
+            // Update pagination buttons
+            document.getElementById('btn-prev').disabled = !data.previous;
+            document.getElementById('btn-next').disabled = !data.next;
+            
+            if (logs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-slate-400">
+                            No logs found matching your criteria.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = logs.map(log => `
+                <tr class="hover:bg-slate-700/50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm font-mono text-primary cursor-pointer hover:underline" onclick="viewLog('${log.request_id}')">
+                            ${log.request_id.substring(0, 8)}...
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${log.model_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">${log.user_id || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                        <span class="text-purple-400">${log.prompt_tokens}</span> / 
+                        <span class="text-green-400">${log.completion_tokens}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${formatLatency(log.latency_ms)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-cyan-400">${formatCurrency(log.cost_estimate)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            log.status === 'success' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-red-500/20 text-red-400'
+                        }">
+                            ${log.status}
+                            ${log.error_type !== 'none' ? ` (${log.error_type})` : ''}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">${formatDate(log.timestamp)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="viewLog('${log.request_id}')" class="text-primary hover:text-blue-400 text-sm">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="px-6 py-12 text-center text-red-400">
+                        Failed to load logs. Please try again.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    async function viewLog(requestId) {
+        const modal = document.getElementById('log-modal');
+        const content = document.getElementById('modal-content');
+        
+        content.innerHTML = `
+            <div class="flex justify-center py-8">
+                <div class="spinner"></div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+        
+        try {
+            const log = await fetchAPI(`/logs/${requestId}/`);
+            
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Header Info -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <p class="text-xs text-slate-400 uppercase">Request ID</p>
+                            <p class="text-sm font-mono text-white break-all">${log.request_id}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-400 uppercase">Model</p>
+                            <p class="text-sm text-white">${log.model_name}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-400 uppercase">Status</p>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                                log.status === 'success' 
+                                    ? 'bg-green-500/20 text-green-400' 
+                                    : 'bg-red-500/20 text-red-400'
+                            }">
+                                ${log.status}
+                            </span>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-400 uppercase">Timestamp</p>
+                            <p class="text-sm text-white">${formatDate(log.timestamp)}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Metrics -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-700/50 rounded-lg p-4">
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-purple-400">${log.prompt_tokens}</p>
+                            <p class="text-xs text-slate-400">Prompt Tokens</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-green-400">${log.completion_tokens}</p>
+                            <p class="text-xs text-slate-400">Completion Tokens</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-yellow-400">${formatLatency(log.latency_ms)}</p>
+                            <p class="text-xs text-slate-400">Latency</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-cyan-400">${formatCurrency(log.cost_estimate)}</p>
+                            <p class="text-xs text-slate-400">Cost</p>
+                        </div>
+                    </div>
+                    
+                    ${log.status === 'error' ? `
+                    <!-- Error Info -->
+                    <div class="bg-red-500/10 border border-red-500/50 rounded-lg p-4">
+                        <p class="text-sm font-medium text-red-400 mb-2">Error: ${log.error_type}</p>
+                        <p class="text-sm text-red-200">${log.error_message || 'No error message available'}</p>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Prompt -->
+                    <div>
+                        <p class="text-sm font-medium text-slate-300 mb-2">Prompt</p>
+                        <div class="bg-slate-900 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            <pre class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(log.prompt_text)}</pre>
+                        </div>
+                    </div>
+                    
+                    ${log.response_text ? `
+                    <!-- Response -->
+                    <div>
+                        <p class="text-sm font-medium text-slate-300 mb-2">Response</p>
+                        <div class="bg-slate-900 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            <pre class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(log.response_text)}</pre>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${log.user_id ? `
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase">User ID</p>
+                        <p class="text-sm text-white">${log.user_id}</p>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Failed to load log details:', error);
+            content.innerHTML = `
+                <div class="text-center py-8 text-red-400">
+                    Failed to load log details. Please try again.
+                </div>
+            `;
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function closeModal() {
+        document.getElementById('log-modal').classList.add('hidden');
+    }
+    
+    function applyFilters() {
+        currentPage = 1;
+        loadLogs();
+    }
+    
+    function previousPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            loadLogs();
+        }
+    }
+    
+    function nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            loadLogs();
+        }
+    }
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+    
+    // Close modal on backdrop click
+    document.getElementById('log-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadModels();
+        loadLogs();
+    });
+</script>
+{% endblock %}

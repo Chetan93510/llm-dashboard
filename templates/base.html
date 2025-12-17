@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LLM Observability Dashboard{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                        success: '#22c55e',
+                        warning: '#eab308',
+                        danger: '#ef4444',
+                        dark: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Custom Styles -->
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #1e293b;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Card hover effect */
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Smooth transitions */
+        .transition-all {
+            transition: all 0.3s ease;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center space-x-3">
+                        <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span class="text-xl font-bold text-white">LLM Observability</span>
+                    </a>
+                </div>
+                
+                <!-- Navigation Links -->
+                <div class="hidden md:block">
+                    <div class="flex items-center space-x-4">
+                        <a href="/chat/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/chat/' %}bg-primary text-white{% endif %}">
+                            💬 Chat
+                        </a>
+                        <a href="/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/' %}bg-slate-700 text-white{% endif %}">
+                            Overview
+                        </a>
+                        <a href="/analytics/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/analytics/' %}bg-slate-700 text-white{% endif %}">
+                            Analytics
+                        </a>
+                        <a href="/logs/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/logs/' %}bg-slate-700 text-white{% endif %}">
+                            Logs
+                        </a>
+                        <a href="/feedback/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/feedback/' %}bg-slate-700 text-white{% endif %}">
+                            Feedback
+                        </a>
+                        <a href="/alerts/" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 {% if request.path == '/alerts/' %}bg-slate-700 text-white{% endif %}">
+                            Alerts
+                        </a>
+                        
+                        <!-- Auth Links -->
+                        <div class="border-l border-slate-700 pl-4 ml-4">
+                            {% if user.is_authenticated %}
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-slate-400 text-sm">👤 {{ user.email|default:user.username }}</span>
+                                    <a href="{% url 'logout' %}" class="px-3 py-2 rounded-md text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-all">
+                                        Logout
+                                    </a>
+                                </div>
+                            {% else %}
+                                <div class="flex items-center space-x-2">
+                                    <a href="{% url 'login' %}" class="px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700">
+                                        Login
+                                    </a>
+                                    <a href="{% url 'signup' %}" class="px-3 py-2 rounded-md text-sm font-medium bg-primary hover:bg-blue-600 text-white">
+                                        Sign Up
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mobile menu button -->
+                <div class="md:hidden">
+                    <button id="mobile-menu-btn" class="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700">
+                        <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="/chat/" class="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">💬 Chat</a>
+                <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Overview</a>
+                <a href="/analytics/" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Analytics</a>
+                <a href="/logs/" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Logs</a>
+                <a href="/feedback/" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Feedback</a>
+                <a href="/alerts/" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Alerts</a>
+                
+                <!-- Mobile Auth Links -->
+                <div class="border-t border-slate-700 pt-3 mt-3">
+                    {% if user.is_authenticated %}
+                        <div class="px-3 py-2 text-slate-400 text-sm">👤 {{ user.email|default:user.username }}</div>
+                        <a href="{% url 'logout' %}" class="block px-3 py-2 rounded-md text-base font-medium bg-red-600 text-white hover:bg-red-700">Logout</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-700">Login</a>
+                        <a href="{% url 'signup' %}" class="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white hover:bg-blue-600">Sign Up</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-slate-800 border-t border-slate-700 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <p class="text-center text-slate-400 text-sm">
+                LLM Observability Dashboard &copy; 2024
+            </p>
+        </div>
+    </footer>
+    
+    <!-- Common JavaScript -->
+    <script>
+        // Mobile menu toggle
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        });
+        
+        // API base URL
+        const API_BASE = '/api';
+        
+        // Utility functions
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(2) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+        
+        function formatCurrency(amount) {
+            const value = parseFloat(amount);
+            if (value === 0) return '$0.00';
+            if (value < 0.0001) return '$' + value.toFixed(6);
+            if (value < 0.01) return '$' + value.toFixed(4);
+            return '$' + value.toFixed(2);
+        }
+        
+        function formatLatency(ms) {
+            if (ms >= 1000) {
+                return (ms / 1000).toFixed(2) + 's';
+            }
+            return ms + 'ms';
+        }
+        
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleString();
+        }
+        
+        function showLoading(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.innerHTML = '<div class="flex justify-center py-8"><div class="spinner"></div></div>';
+            }
+        }
+        
+        function showError(elementId, message) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.innerHTML = `<div class="bg-red-900/50 border border-red-500 rounded-lg p-4 text-red-200">${message}</div>`;
+            }
+        }
+        
+        async function fetchAPI(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
+            }
+        }
+        
+        // Chart color palette
+        const chartColors = {
+            primary: 'rgb(59, 130, 246)',
+            success: 'rgb(34, 197, 94)',
+            warning: 'rgb(234, 179, 8)',
+            danger: 'rgb(239, 68, 68)',
+            purple: 'rgb(168, 85, 247)',
+            cyan: 'rgb(6, 182, 212)',
+            slate: 'rgb(100, 116, 139)',
+        };
+        
+        const chartColorsAlpha = {
+            primary: 'rgba(59, 130, 246, 0.2)',
+            success: 'rgba(34, 197, 94, 0.2)',
+            warning: 'rgba(234, 179, 8, 0.2)',
+            danger: 'rgba(239, 68, 68, 0.2)',
+            purple: 'rgba(168, 85, 247, 0.2)',
+            cyan: 'rgba(6, 182, 212, 0.2)',
+        };
+        
+        // Default chart options
+        const defaultChartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgb(203, 213, 225)'
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: 'rgb(148, 163, 184)' },
+                    grid: { color: 'rgba(71, 85, 105, 0.5)' }
+                },
+                y: {
+                    ticks: { color: 'rgb(148, 163, 184)' },
+                    grid: { color: 'rgba(71, 85, 105, 0.5)' }
+                }
+            }
+        };
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

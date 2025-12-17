@@ -1,0 +1,240 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - LLM Observability Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: gradient 15s ease infinite;
+            background-size: 200% 200%;
+        }
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .animate-fadeInUp {
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .logo-pulse:hover {
+            animation: pulse 0.6s ease-in-out;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .input-group {
+            position: relative;
+        }
+        .floating-label {
+            position: absolute;
+            left: 16px;
+            top: 14px;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            color: #6b7280;
+        }
+        .input-group input:focus ~ .floating-label,
+        .input-group input:not(:placeholder-shown) ~ .floating-label {
+            top: -10px;
+            left: 12px;
+            font-size: 0.75rem;
+            color: #3b82f6;
+            background: white;
+            padding: 0 4px;
+        }
+        .btn-shine {
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-shine::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        .btn-shine:hover::before {
+            left: 100%;
+        }
+        .strength-meter {
+            height: 4px;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md animate-fadeInUp">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 via-teal-500 to-blue-500 rounded-3xl shadow-2xl mb-4 logo-pulse">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+            </div>
+            <h1 class="text-4xl font-bold text-white mb-2" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">Create Account</h1>
+            <p class="text-white text-lg opacity-90">Start monitoring your LLM usage</p>
+        </div>
+
+        <!-- Signup Card -->
+        <div class="glass-effect rounded-3xl shadow-2xl border border-white/20 p-8">
+            <!-- Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="mb-4 p-4 rounded-xl {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if form.errors %}
+                <div class="mb-4 p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            <strong>{{ field }}:</strong> {{ error }}<br>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Signup Form -->
+            <form method="POST" action="{% url 'account_signup' %}" class="space-y-5">
+                {% csrf_token %}
+                
+                <div class="input-group">
+                    <input type="email" id="{{ form.email.id_for_label }}" name="{{ form.email.html_name }}" required placeholder=" "
+                           class="w-full px-4 py-3.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                    <label for="{{ form.email.id_for_label }}" class="floating-label">📧 Email Address</label>
+                </div>
+
+                {% if form.username %}
+                <div class="input-group">
+                    <input type="text" id="{{ form.username.id_for_label }}" name="{{ form.username.html_name }}" placeholder=" "
+                           class="w-full px-4 py-3.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                    <label for="{{ form.username.id_for_label }}" class="floating-label">👤 Username</label>
+                </div>
+                {% endif %}
+
+                <div class="input-group">
+                    <input type="password" id="{{ form.password1.id_for_label }}" name="{{ form.password1.html_name }}" required minlength="8" placeholder=" " oninput="checkPasswordStrength()"
+                           class="w-full px-4 py-3.5 pr-12 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                    <label for="{{ form.password1.id_for_label }}" class="floating-label">🔒 Password</label>
+                    <button type="button" onclick="togglePassword('{{ form.password1.id_for_label }}', 'eye-icon-1')" class="absolute right-4 top-3 text-gray-500 hover:text-gray-700">
+                        <svg id="eye-icon-1" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </button>
+                    <div class="mt-2">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-xs text-gray-600">Password strength:</span>
+                            <span id="strength-text" class="text-xs font-medium">Weak</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-1.5">
+                            <div id="strength-bar" class="strength-meter bg-red-500 w-0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <input type="password" id="{{ form.password2.id_for_label }}" name="{{ form.password2.html_name }}" required placeholder=" "
+                           class="w-full px-4 py-3.5 pr-12 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                    <label for="{{ form.password2.id_for_label }}" class="floating-label">🔓 Confirm Password</label>
+                    <button type="button" onclick="togglePassword('{{ form.password2.id_for_label }}', 'eye-icon-2')" class="absolute right-4 top-3 text-gray-500 hover:text-gray-700">
+                        <svg id="eye-icon-2" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <button type="submit" class="w-full py-4 bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 btn-shine">
+                    ✨ Create Account
+                </button>
+            </form>
+
+            <!-- Login Link -->
+            <div class="mt-6 text-center">
+                <p class="text-gray-600">
+                    Already have an account? 
+                    <a href="{% url 'account_login' %}" class="text-blue-600 hover:text-blue-700 font-medium">Sign in</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Back to Dashboard -->
+        <div class="text-center mt-8">
+            <a href="/" class="text-white hover:text-gray-200 text-sm font-medium inline-flex items-center transition-all hover:underline">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword(inputId, iconId) {
+            const passwordInput = document.getElementById(inputId);
+            const eyeIcon = document.getElementById(iconId);
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>';
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>';
+            }
+        }
+
+        function checkPasswordStrength() {
+            const password = document.getElementById('{{ form.password1.id_for_label }}').value;
+            const strengthBar = document.getElementById('strength-bar');
+            const strengthText = document.getElementById('strength-text');
+            
+            let strength = 0;
+            
+            if (password.length >= 8) strength++;
+            if (password.length >= 12) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[^a-zA-Z\d]/.test(password)) strength++;
+            
+            const widths = ['0%', '25%', '50%', '75%', '100%'];
+            const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-lime-500', 'bg-green-500'];
+            const texts = ['Weak', 'Fair', 'Good', 'Strong', 'Excellent'];
+            const textColors = ['text-red-600', 'text-orange-600', 'text-yellow-600', 'text-lime-600', 'text-green-600'];
+            
+            strengthBar.className = 'strength-meter ' + colors[strength];
+            strengthBar.style.width = widths[strength];
+            strengthText.textContent = texts[strength];
+            strengthText.className = 'text-xs font-medium ' + textColors[strength];
+        }
+    </script>
+</body>
+</html>

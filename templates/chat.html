@@ -1,0 +1,362 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat - LLM Observability{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-200px)]">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-white">LLM Chat</h1>
+            <p class="mt-1 text-slate-400">Chat with AI - All conversations are logged for analysis</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-4">
+            <select id="model-select" class="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+            </select>
+            <button onclick="clearChat()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all">
+                Clear Chat
+            </button>
+        </div>
+    </div>
+    
+    <!-- Chat Container -->
+    <div class="flex-1 bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden">
+        <!-- Messages Area -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <!-- Welcome Message -->
+            <div class="flex justify-center">
+                <div class="bg-slate-700/50 rounded-lg px-4 py-2 text-slate-400 text-sm">
+                    Start a conversation. All requests are logged for observability analysis.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="border-t border-slate-700 p-4">
+            <form id="chat-form" class="flex space-x-4">
+                <div class="flex-1 relative">
+                    <textarea id="prompt-input" rows="2" 
+                              placeholder="Type your message..." 
+                              class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-4 py-3 pr-12 resize-none focus:ring-primary focus:border-primary"
+                              onkeydown="handleKeyDown(event)"></textarea>
+                </div>
+                <button type="submit" id="send-btn" 
+                        class="px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="send-text">Send</span>
+                    <svg id="send-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Last Request Stats -->
+    <div id="last-request-stats" class="mt-4 bg-slate-800 rounded-xl border border-slate-700 p-4 hidden">
+        <h4 class="text-sm font-medium text-slate-400 mb-3">Last Request Stats</h4>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div>
+                <p class="text-xs text-slate-500">Request ID</p>
+                <p id="stat-request-id" class="text-sm font-mono text-primary truncate">-</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">Model</p>
+                <p id="stat-model" class="text-sm text-white">-</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">Prompt Tokens</p>
+                <p id="stat-prompt-tokens" class="text-sm text-purple-400">-</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">Completion Tokens</p>
+                <p id="stat-completion-tokens" class="text-sm text-green-400">-</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">Latency</p>
+                <p id="stat-latency" class="text-sm text-yellow-400">-</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">Cost</p>
+                <p id="stat-cost" class="text-sm text-cyan-400">-</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const messagesContainer = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const promptInput = document.getElementById('prompt-input');
+    const sendBtn = document.getElementById('send-btn');
+    const sendText = document.getElementById('send-text');
+    const sendSpinner = document.getElementById('send-spinner');
+    
+    let isLoading = false;
+    let chatHistory = [];  // Store chat history
+    
+    // Load chat history from localStorage
+    function loadChatHistory() {
+        const saved = localStorage.getItem('chatHistory');
+        if (saved) {
+            chatHistory = JSON.parse(saved);
+            if (chatHistory.length > 0) {
+                // Clear welcome message
+                messagesContainer.innerHTML = '';
+                // Restore messages
+                chatHistory.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `flex ${msg.isUser ? 'justify-end' : 'justify-start'}`;
+                    
+                    const bubble = document.createElement('div');
+                    if (msg.isError) {
+                        bubble.className = 'max-w-3xl rounded-lg px-4 py-3 bg-red-500/20 border border-red-500/50 text-red-400';
+                        bubble.innerHTML = `
+                            <div class="flex items-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span>Error: ${msg.content}</span>
+                            </div>
+                        `;
+                    } else {
+                        bubble.className = `max-w-3xl rounded-lg px-4 py-3 ${
+                            msg.isUser 
+                                ? 'bg-primary text-white' 
+                                : 'bg-slate-700 text-slate-200'
+                        }`;
+                        if (!msg.isUser) {
+                            bubble.innerHTML = formatResponse(msg.content);
+                        } else {
+                            bubble.textContent = msg.content;
+                        }
+                    }
+                    
+                    messageDiv.appendChild(bubble);
+                    messagesContainer.appendChild(messageDiv);
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+    }
+    
+    // Save chat history to localStorage
+    function saveChatHistory() {
+        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+    }
+    
+    function handleKeyDown(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    }
+    
+    function addMessage(content, isUser, requestData = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+        
+        const bubble = document.createElement('div');
+        bubble.className = `max-w-3xl rounded-lg px-4 py-3 ${
+            isUser 
+                ? 'bg-primary text-white' 
+                : 'bg-slate-700 text-slate-200'
+        }`;
+        
+        // Format response with markdown-like styling
+        if (!isUser) {
+            bubble.innerHTML = formatResponse(content);
+        } else {
+            bubble.textContent = content;
+        }
+        
+        messageDiv.appendChild(bubble);
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Save to chat history
+        chatHistory.push({ content, isUser, isError: false });
+        saveChatHistory();
+        
+        // Update stats if we have request data
+        if (requestData) {
+            updateStats(requestData);
+        }
+    }
+    
+    function formatResponse(text) {
+        // Simple markdown-like formatting
+        return text
+            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-slate-800 rounded p-3 my-2 overflow-x-auto text-sm"><code>$2</code></pre>')
+            .replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-sm">$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\n/g, '<br>');
+    }
+    
+    function addErrorMessage(error) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'flex justify-start';
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'max-w-3xl rounded-lg px-4 py-3 bg-red-500/20 border border-red-500/50 text-red-400';
+        bubble.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Error: ${error}</span>
+            </div>
+        `;
+        
+        messageDiv.appendChild(bubble);
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Save error to chat history
+        chatHistory.push({ content: error, isUser: false, isError: true });
+        saveChatHistory();
+    }
+    
+    function addLoadingIndicator() {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading-indicator';
+        loadingDiv.className = 'flex justify-start';
+        loadingDiv.innerHTML = `
+            <div class="bg-slate-700 rounded-lg px-4 py-3 flex items-center space-x-2">
+                <div class="flex space-x-1">
+                    <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                    <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                    <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                </div>
+                <span class="text-slate-400 text-sm">Thinking...</span>
+            </div>
+        `;
+        messagesContainer.appendChild(loadingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function removeLoadingIndicator() {
+        const loading = document.getElementById('loading-indicator');
+        if (loading) {
+            loading.remove();
+        }
+    }
+    
+    function updateStats(data) {
+        document.getElementById('last-request-stats').classList.remove('hidden');
+        document.getElementById('stat-request-id').textContent = data.request_id.substring(0, 12) + '...';
+        document.getElementById('stat-request-id').title = data.request_id;
+        document.getElementById('stat-model').textContent = data.model;
+        document.getElementById('stat-prompt-tokens').textContent = data.prompt_tokens;
+        document.getElementById('stat-completion-tokens').textContent = data.completion_tokens;
+        document.getElementById('stat-latency').textContent = formatLatency(data.latency_ms);
+        document.getElementById('stat-cost').textContent = formatCurrency(data.cost_estimate);
+    }
+    
+    function setLoading(loading) {
+        isLoading = loading;
+        sendBtn.disabled = loading;
+        promptInput.disabled = loading;
+        
+        if (loading) {
+            sendText.textContent = '';
+            sendSpinner.classList.remove('hidden');
+            addLoadingIndicator();
+        } else {
+            sendText.textContent = 'Send';
+            sendSpinner.classList.add('hidden');
+            removeLoadingIndicator();
+        }
+    }
+    
+    function clearChat() {
+        messagesContainer.innerHTML = `
+            <div class="flex justify-center">
+                <div class="bg-slate-700/50 rounded-lg px-4 py-2 text-slate-400 text-sm">
+                    Start a conversation. All requests are logged for observability analysis.
+                </div>
+            </div>
+        `;
+        document.getElementById('last-request-stats').classList.add('hidden');
+        
+        // Clear chat history from localStorage
+        chatHistory = [];
+        localStorage.removeItem('chatHistory');
+    }
+    
+    // Get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const prompt = promptInput.value.trim();
+        if (!prompt || isLoading) return;
+        
+        const model = document.getElementById('model-select').value;
+        
+        // Add user message
+        addMessage(prompt, true);
+        promptInput.value = '';
+        
+        // Set loading state
+        setLoading(true);
+        
+        try {
+            const csrftoken = getCookie('csrftoken');
+            const response = await fetch(`${API_BASE}/llm/prompt/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    model: model,
+                    max_tokens: 2048,
+                    temperature: 0.7,
+                }),
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                addMessage(data.response, false, data);
+            } else {
+                addErrorMessage(data.error || 'Failed to get response');
+            }
+            
+        } catch (error) {
+            console.error('Chat error:', error);
+            addErrorMessage('Network error. Please check your connection.');
+        } finally {
+            setLoading(false);
+        }
+    });
+    
+    // Focus input on load and restore chat history
+    document.addEventListener('DOMContentLoaded', () => {
+        loadChatHistory();
+        promptInput.focus();
+    });
+</script>
+{% endblock %}

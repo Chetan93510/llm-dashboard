@@ -1,0 +1,364 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Overview - LLM Observability{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Dashboard Overview</h1>
+            <p class="mt-1 text-slate-400">Real-time LLM usage metrics and performance analytics</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-4">
+            <button onclick="refreshData()" class="flex items-center px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+            </button>
+            <span id="last-updated" class="text-sm text-slate-400"></span>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Total Calls -->
+        <div class="stat-card bg-slate-800 rounded-xl p-6 border border-slate-700 transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Total Calls</p>
+                    <p id="stat-total-calls" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="bg-blue-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center text-sm">
+                <span id="stat-success-count" class="text-green-400">-</span>
+                <span class="text-slate-500 mx-2">success</span>
+                <span class="text-slate-500">|</span>
+                <span id="stat-error-count" class="text-red-400 mx-2">-</span>
+                <span class="text-slate-500">errors</span>
+            </div>
+        </div>
+        
+        <!-- Total Tokens -->
+        <div class="stat-card bg-slate-800 rounded-xl p-6 border border-slate-700 transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Total Tokens</p>
+                    <p id="stat-total-tokens" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="bg-purple-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <span id="stat-total-cost" class="text-lg font-semibold text-cyan-400">-</span>
+                <span class="text-slate-500 text-sm ml-1">estimated cost</span>
+            </div>
+        </div>
+        
+        <!-- Average Latency -->
+        <div class="stat-card bg-slate-800 rounded-xl p-6 border border-slate-700 transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Avg Latency</p>
+                    <p id="stat-avg-latency" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="bg-yellow-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <span class="text-slate-500 text-sm">P95:</span>
+                <span id="stat-p95-latency" class="text-yellow-400 ml-1">-</span>
+            </div>
+        </div>
+        
+        <!-- Error Rate -->
+        <div class="stat-card bg-slate-800 rounded-xl p-6 border border-slate-700 transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Error Rate</p>
+                    <p id="stat-error-rate" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="bg-red-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div id="error-bar" class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div id="error-bar-fill" class="h-full bg-red-500 transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Daily Stats Chart -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-semibold text-white mb-4">Daily Activity (Last 7 Days)</h3>
+            <div class="h-64">
+                <canvas id="dailyStatsChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Model Usage Pie Chart -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-semibold text-white mb-4">Model Usage Distribution</h3>
+            <div class="h-64">
+                <canvas id="modelUsageChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity Table -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white">Recent Requests</h3>
+                <a href="/logs/" class="text-primary hover:text-blue-400 text-sm">View all →</a>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Request ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Tokens</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Latency</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Time</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-logs" class="divide-y divide-slate-700">
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-400">
+                            <div class="spinner mx-auto"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let dailyStatsChart = null;
+    let modelUsageChart = null;
+    
+    async function loadOverviewMetrics() {
+        try {
+            const data = await fetchAPI('/metrics/overview/');
+            
+            document.getElementById('stat-total-calls').textContent = formatNumber(data.total_calls);
+            document.getElementById('stat-total-tokens').textContent = formatNumber(data.total_tokens);
+            document.getElementById('stat-total-cost').textContent = formatCurrency(data.total_cost);
+            document.getElementById('stat-avg-latency').textContent = formatLatency(data.avg_latency_ms);
+            document.getElementById('stat-p95-latency').textContent = formatLatency(data.p95_latency_ms);
+            document.getElementById('stat-error-rate').textContent = data.error_rate.toFixed(2) + '%';
+            document.getElementById('stat-success-count').textContent = formatNumber(data.success_count);
+            document.getElementById('stat-error-count').textContent = formatNumber(data.error_count);
+            document.getElementById('error-bar-fill').style.width = Math.min(data.error_rate, 100) + '%';
+            
+        } catch (error) {
+            console.error('Failed to load overview metrics:', error);
+        }
+    }
+    
+    async function loadDailyStats() {
+        try {
+            const data = await fetchAPI('/metrics/daily-stats/?days=7');
+            
+            const labels = data.map(d => d.date);
+            const successData = data.map(d => d.success_calls);
+            const errorData = data.map(d => d.error_calls);
+            
+            const ctx = document.getElementById('dailyStatsChart').getContext('2d');
+            
+            if (dailyStatsChart) {
+                dailyStatsChart.destroy();
+            }
+            
+            dailyStatsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Success',
+                            data: successData,
+                            backgroundColor: chartColors.success,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'Errors',
+                            data: errorData,
+                            backgroundColor: chartColors.danger,
+                            borderRadius: 4,
+                        }
+                    ]
+                },
+                options: {
+                    ...defaultChartOptions,
+                    scales: {
+                        ...defaultChartOptions.scales,
+                        x: {
+                            ...defaultChartOptions.scales.x,
+                            stacked: true,
+                        },
+                        y: {
+                            ...defaultChartOptions.scales.y,
+                            stacked: true,
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Failed to load daily stats:', error);
+        }
+    }
+    
+    async function loadModelUsage() {
+        try {
+            const data = await fetchAPI('/metrics/model-usage/');
+            
+            const labels = data.map(d => d.model_name);
+            const counts = data.map(d => d.call_count);
+            
+            const colors = [
+                chartColors.primary,
+                chartColors.success,
+                chartColors.warning,
+                chartColors.purple,
+                chartColors.cyan,
+                chartColors.danger,
+            ];
+            
+            const ctx = document.getElementById('modelUsageChart').getContext('2d');
+            
+            if (modelUsageChart) {
+                modelUsageChart.destroy();
+            }
+            
+            modelUsageChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: 'rgb(203, 213, 225)',
+                                padding: 15,
+                            }
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Failed to load model usage:', error);
+        }
+    }
+    
+    async function loadRecentLogs() {
+        try {
+            const data = await fetchAPI('/logs/?page_size=10');
+            const logs = data.results || data;
+            
+            const tbody = document.getElementById('recent-logs');
+            
+            if (logs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-400">
+                            No requests found. Try sending some LLM requests!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = logs.map(log => `
+                <tr class="hover:bg-slate-700/50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm font-mono text-slate-300">${log.request_id.substring(0, 8)}...</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-slate-300">${log.model_name}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-slate-300">${formatNumber(log.total_tokens)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-slate-300">${formatLatency(log.latency_ms)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            log.status === 'success' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-red-500/20 text-red-400'
+                        }">
+                            ${log.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-slate-400">${formatDate(log.timestamp)}</span>
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Failed to load recent logs:', error);
+            document.getElementById('recent-logs').innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-red-400">
+                        Failed to load logs. Please try again.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function refreshData() {
+        loadOverviewMetrics();
+        loadDailyStats();
+        loadModelUsage();
+        loadRecentLogs();
+        document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    }
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+        refreshData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(refreshData, 30000);
+    });
+</script>
+{% endblock %}

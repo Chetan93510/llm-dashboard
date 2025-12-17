@@ -1,0 +1,411 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics - LLM Observability{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Analytics</h1>
+            <p class="mt-1 text-slate-400">Detailed token usage, latency, and model performance analytics</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-4">
+            <!-- Date Range Filter -->
+            <div class="flex items-center space-x-2">
+                <select id="date-range" class="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+            </div>
+            <button onclick="loadAnalytics()" class="flex items-center px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+    
+    <!-- Token Usage Over Time -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white">Token Usage Over Time</h3>
+                <div class="flex items-center space-x-2">
+                    <button onclick="setGroupBy('hour')" id="btn-hour" class="px-3 py-1 text-sm rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600">Hour</button>
+                    <button onclick="setGroupBy('day')" id="btn-day" class="px-3 py-1 text-sm rounded-lg bg-primary text-white">Day</button>
+                    <button onclick="setGroupBy('month')" id="btn-month" class="px-3 py-1 text-sm rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600">Month</button>
+                </div>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="h-80">
+                <canvas id="tokenUsageChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Two Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Latency by Model -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700">
+            <div class="p-6 border-b border-slate-700">
+                <h3 class="text-lg font-semibold text-white">Latency by Model</h3>
+            </div>
+            <div class="p-6">
+                <div class="h-72">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Model Usage Breakdown -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700">
+            <div class="p-6 border-b border-slate-700">
+                <h3 class="text-lg font-semibold text-white">Model Usage Breakdown</h3>
+            </div>
+            <div class="p-6">
+                <div class="h-72">
+                    <canvas id="modelPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Error Breakdown -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700">
+            <h3 class="text-lg font-semibold text-white">Error Breakdown</h3>
+        </div>
+        <div class="p-6">
+            <div id="error-breakdown" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="text-center py-8 text-slate-400">
+                    <div class="spinner mx-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cost Analysis -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700">
+            <h3 class="text-lg font-semibold text-white">Cost Analysis by Model</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Calls</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Total Tokens</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Total Cost</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Avg Cost/Call</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Usage %</th>
+                    </tr>
+                </thead>
+                <tbody id="cost-table" class="divide-y divide-slate-700">
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-400">
+                            <div class="spinner mx-auto"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Export Section -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Export Data</h3>
+        <div class="flex flex-wrap gap-4">
+            <a href="/api/export/csv/" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export CSV
+            </a>
+            <a href="/api/export/json/?include_analytics=true" class="inline-flex items-center px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-all">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export JSON (with Analytics)
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let tokenUsageChart = null;
+    let latencyChart = null;
+    let modelPieChart = null;
+    let currentGroupBy = 'day';
+    
+    function getDateRange() {
+        const days = parseInt(document.getElementById('date-range').value);
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        return {
+            start_date: startDate.toISOString(),
+            end_date: endDate.toISOString()
+        };
+    }
+    
+    function setGroupBy(groupBy) {
+        currentGroupBy = groupBy;
+        
+        // Update button styles
+        ['hour', 'day', 'month'].forEach(g => {
+            const btn = document.getElementById(`btn-${g}`);
+            if (g === groupBy) {
+                btn.classList.remove('bg-slate-700', 'text-slate-300');
+                btn.classList.add('bg-primary', 'text-white');
+            } else {
+                btn.classList.remove('bg-primary', 'text-white');
+                btn.classList.add('bg-slate-700', 'text-slate-300');
+            }
+        });
+        
+        loadTokenUsage();
+    }
+    
+    async function loadTokenUsage() {
+        try {
+            const { start_date, end_date } = getDateRange();
+            const data = await fetchAPI(`/metrics/token-usage/?start_date=${start_date}&end_date=${end_date}&group_by=${currentGroupBy}`);
+            
+            const labels = data.map(d => {
+                const date = new Date(d.period);
+                if (currentGroupBy === 'hour') {
+                    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' });
+                } else if (currentGroupBy === 'month') {
+                    return date.toLocaleString('en-US', { year: 'numeric', month: 'short' });
+                }
+                return date.toLocaleDateString();
+            });
+            
+            const promptTokens = data.map(d => d.prompt_tokens);
+            const completionTokens = data.map(d => d.completion_tokens);
+            
+            const ctx = document.getElementById('tokenUsageChart').getContext('2d');
+            
+            if (tokenUsageChart) {
+                tokenUsageChart.destroy();
+            }
+            
+            tokenUsageChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Prompt Tokens',
+                            data: promptTokens,
+                            borderColor: chartColors.primary,
+                            backgroundColor: chartColorsAlpha.primary,
+                            fill: true,
+                            tension: 0.4,
+                        },
+                        {
+                            label: 'Completion Tokens',
+                            data: completionTokens,
+                            borderColor: chartColors.success,
+                            backgroundColor: chartColorsAlpha.success,
+                            fill: true,
+                            tension: 0.4,
+                        }
+                    ]
+                },
+                options: defaultChartOptions
+            });
+            
+        } catch (error) {
+            console.error('Failed to load token usage:', error);
+        }
+    }
+    
+    async function loadLatencyMetrics() {
+        try {
+            const { start_date, end_date } = getDateRange();
+            const data = await fetchAPI(`/metrics/latency/?start_date=${start_date}&end_date=${end_date}`);
+            
+            const labels = data.map(d => d.model_name);
+            const avgLatency = data.map(d => d.avg_latency_ms);
+            const p95Latency = data.map(d => d.p95_latency_ms);
+            
+            const ctx = document.getElementById('latencyChart').getContext('2d');
+            
+            if (latencyChart) {
+                latencyChart.destroy();
+            }
+            
+            latencyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Avg Latency (ms)',
+                            data: avgLatency,
+                            backgroundColor: chartColors.primary,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'P95 Latency (ms)',
+                            data: p95Latency,
+                            backgroundColor: chartColors.warning,
+                            borderRadius: 4,
+                        }
+                    ]
+                },
+                options: {
+                    ...defaultChartOptions,
+                    indexAxis: 'y',
+                }
+            });
+            
+        } catch (error) {
+            console.error('Failed to load latency metrics:', error);
+        }
+    }
+    
+    async function loadModelUsage() {
+        try {
+            const { start_date, end_date } = getDateRange();
+            const data = await fetchAPI(`/metrics/model-usage/?start_date=${start_date}&end_date=${end_date}`);
+            
+            const labels = data.map(d => d.model_name);
+            const tokens = data.map(d => d.total_tokens);
+            
+            const colors = [
+                chartColors.primary,
+                chartColors.success,
+                chartColors.warning,
+                chartColors.purple,
+                chartColors.cyan,
+                chartColors.danger,
+            ];
+            
+            const ctx = document.getElementById('modelPieChart').getContext('2d');
+            
+            if (modelPieChart) {
+                modelPieChart.destroy();
+            }
+            
+            modelPieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: tokens,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: 'rgb(203, 213, 225)',
+                                padding: 10,
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Update cost table
+            const tbody = document.getElementById('cost-table');
+            tbody.innerHTML = data.map(d => `
+                <tr class="hover:bg-slate-700/50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${d.model_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${formatNumber(d.call_count)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${formatNumber(d.total_tokens)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-cyan-400">${formatCurrency(d.total_cost)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${formatCurrency(d.total_cost / d.call_count)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-24 bg-slate-700 rounded-full h-2 mr-2">
+                                <div class="bg-primary h-2 rounded-full" style="width: ${d.percentage}%"></div>
+                            </div>
+                            <span class="text-sm text-slate-300">${d.percentage}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Failed to load model usage:', error);
+        }
+    }
+    
+    async function loadErrorBreakdown() {
+        try {
+            const { start_date, end_date } = getDateRange();
+            const data = await fetchAPI(`/metrics/errors/?start_date=${start_date}&end_date=${end_date}`);
+            
+            const container = document.getElementById('error-breakdown');
+            
+            if (data.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <div class="text-green-400 text-lg font-medium">No errors in the selected period! 🎉</div>
+                        <p class="text-slate-400 mt-2">All requests completed successfully.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const errorColors = {
+                'timeout': 'yellow',
+                'rate_limit': 'orange',
+                'invalid_prompt': 'purple',
+                'provider_error': 'red',
+                'authentication': 'pink',
+                'network': 'cyan',
+                'unknown': 'slate',
+            };
+            
+            container.innerHTML = data.map(d => {
+                const color = errorColors[d.error_type] || 'slate';
+                return `
+                    <div class="bg-slate-700/50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-${color}-400 capitalize">${d.error_type.replace('_', ' ')}</span>
+                            <span class="text-lg font-bold text-white">${d.count}</span>
+                        </div>
+                        <div class="w-full bg-slate-600 rounded-full h-2">
+                            <div class="bg-${color}-500 h-2 rounded-full" style="width: ${d.percentage}%"></div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">${d.percentage}% of errors</p>
+                    </div>
+                `;
+            }).join('');
+            
+        } catch (error) {
+            console.error('Failed to load error breakdown:', error);
+        }
+    }
+    
+    function loadAnalytics() {
+        loadTokenUsage();
+        loadLatencyMetrics();
+        loadModelUsage();
+        loadErrorBreakdown();
+    }
+    
+    // Event listeners
+    document.getElementById('date-range').addEventListener('change', loadAnalytics);
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', loadAnalytics);
+</script>
+{% endblock %}

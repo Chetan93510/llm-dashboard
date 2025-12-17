@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP - LLM Observability Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .otp-input {
+            width: 3rem;
+            height: 3.5rem;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg mb-4">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800">Verify Your Email</h1>
+            <p class="text-gray-600 mt-2">We sent a code to <span class="font-semibold">{{ email }}</span></p>
+        </div>
+
+        <!-- OTP Card -->
+        <div class="bg-white rounded-2xl shadow-md border border-gray-100 p-8">
+            <!-- Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="mb-4 p-4 rounded-xl {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- OTP Form -->
+            <form method="POST" class="space-y-6">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-4 text-center">Enter 6-Digit Code</label>
+                    <div class="flex justify-center gap-2" id="otp-container">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="0">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="1">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="2">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="3">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="4">
+                        <input type="text" maxlength="1" class="otp-input border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" data-index="5">
+                    </div>
+                    <input type="hidden" name="otp_code" id="otp_code">
+                </div>
+
+                <button type="submit" id="verify-btn" class="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:shadow-lg hover:from-blue-600 hover:to-blue-700 transform hover:-translate-y-0.5 transition-all">
+                    Verify & Create Account
+                </button>
+            </form>
+
+            <!-- Resend OTP -->
+            <div class="mt-6 text-center">
+                <p class="text-gray-600 text-sm mb-2">
+                    Didn't receive the code?
+                </p>
+                <a href="{% url 'resend_otp' %}" class="text-blue-600 hover:text-blue-700 font-medium text-sm">
+                    Resend OTP
+                </a>
+            </div>
+
+            <!-- Expiry Notice -->
+            <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <p class="text-amber-800 text-sm text-center">
+                    ⏱️ Code expires in 10 minutes
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const inputs = document.querySelectorAll('.otp-input');
+        const otpCodeInput = document.getElementById('otp_code');
+        const form = document.querySelector('form');
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                const value = e.target.value;
+                
+                if (value.length === 1 && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                }
+                
+                updateOTPCode();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pastedData = e.clipboardData.getData('text').slice(0, 6);
+                
+                pastedData.split('').forEach((char, i) => {
+                    if (inputs[i]) {
+                        inputs[i].value = char;
+                    }
+                });
+                
+                if (pastedData.length === 6) {
+                    inputs[5].focus();
+                }
+                
+                updateOTPCode();
+            });
+        });
+
+        function updateOTPCode() {
+            const code = Array.from(inputs).map(input => input.value).join('');
+            otpCodeInput.value = code;
+        }
+
+        form.addEventListener('submit', (e) => {
+            updateOTPCode();
+            
+            if (otpCodeInput.value.length !== 6) {
+                e.preventDefault();
+                alert('Please enter all 6 digits');
+            }
+        });
+
+        // Auto-focus first input
+        inputs[0].focus();
+    </script>
+</body>
+</html>

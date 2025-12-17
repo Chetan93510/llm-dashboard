@@ -1,0 +1,512 @@
+{% extends 'base.html' %}
+
+{% block title %}Alerts - LLM Observability{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Alerts</h1>
+            <p class="mt-1 text-slate-400">Manage alert rules and view alert history</p>
+        </div>
+        <button onclick="openCreateRuleModal()" class="mt-4 md:mt-0 flex items-center px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Create Alert Rule
+        </button>
+    </div>
+    
+    <!-- Active Alerts Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Total Rules -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Total Rules</p>
+                    <p id="stat-total-rules" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="bg-blue-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Active Rules -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Active Rules</p>
+                    <p id="stat-active-rules" class="text-3xl font-bold text-green-400 mt-2">-</p>
+                </div>
+                <div class="bg-green-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Alerts -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-sm font-medium">Unacknowledged Alerts</p>
+                    <p id="stat-unack-alerts" class="text-3xl font-bold text-yellow-400 mt-2">-</p>
+                </div>
+                <div class="bg-yellow-500/20 p-3 rounded-lg">
+                    <svg class="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alert Rules Table -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700">
+            <h3 class="text-lg font-semibold text-white">Alert Rules</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Metric Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Threshold</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Last Triggered</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rules-table" class="divide-y divide-slate-700">
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-400">
+                            <div class="spinner mx-auto mb-4"></div>
+                            Loading rules...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Alert History -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">Alert History</h3>
+            <select id="filter-acknowledged" class="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-1 text-sm">
+                <option value="">All Alerts</option>
+                <option value="false">Unacknowledged</option>
+                <option value="true">Acknowledged</option>
+            </select>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Rule</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Message</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Metric Value</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Triggered At</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table" class="divide-y divide-slate-700">
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-slate-400">
+                            <div class="spinner mx-auto mb-4"></div>
+                            Loading alerts...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Rule Modal -->
+<div id="rule-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-xl border border-slate-700 max-w-lg w-full">
+        <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+            <h3 id="modal-title" class="text-lg font-semibold text-white">Create Alert Rule</h3>
+            <button onclick="closeRuleModal()" class="text-slate-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="rule-form" class="p-6 space-y-4">
+            <input type="hidden" id="rule-id" value="">
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Name</label>
+                <input type="text" id="rule-name" required
+                       placeholder="Alert rule name"
+                       class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Description</label>
+                <textarea id="rule-description" rows="2"
+                          placeholder="Optional description"
+                          class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary"></textarea>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Metric Type</label>
+                <select id="rule-metric-type" required class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                    <option value="error_rate">Error Rate (%)</option>
+                    <option value="latency">Latency (ms)</option>
+                    <option value="token_spike">Token Spike (multiplier)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-2">Threshold</label>
+                <input type="number" id="rule-threshold" required step="any"
+                       placeholder="Threshold value"
+                       class="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                <p id="threshold-hint" class="text-xs text-slate-500 mt-1">Alert triggers when error rate exceeds this percentage</p>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="rule-active" checked class="sr-only peer">
+                    <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    <span class="ms-3 text-sm font-medium text-slate-300">Active</span>
+                </label>
+                
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="rule-email" class="sr-only peer">
+                    <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    <span class="ms-3 text-sm font-medium text-slate-300">Email Notification</span>
+                </label>
+            </div>
+            
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="closeRuleModal()" class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg transition-all">
+                    Save Rule
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let editingRuleId = null;
+    
+    async function loadAlertRules() {
+        const tbody = document.getElementById('rules-table');
+        
+        try {
+            const data = await fetchAPI('/alerts/rules/');
+            const rules = data.results || data;
+            
+            // Update stats
+            document.getElementById('stat-total-rules').textContent = rules.length;
+            document.getElementById('stat-active-rules').textContent = rules.filter(r => r.is_active).length;
+            
+            if (rules.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-400">
+                            No alert rules configured. Create one to get started!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = rules.map(rule => `
+                <tr class="hover:bg-slate-700/50 transition-colors">
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-medium text-white">${rule.name}</div>
+                        <div class="text-xs text-slate-400">${rule.description || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-700 text-slate-300">
+                            ${formatMetricType(rule.metric_type)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-white">
+                        ${formatThreshold(rule.metric_type, rule.threshold)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            rule.is_active 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-slate-600 text-slate-400'
+                        }">
+                            ${rule.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        ${rule.notify_email 
+                            ? '<span class="text-primary">✓ Enabled</span>' 
+                            : '<span class="text-slate-500">Disabled</span>'
+                        }
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                        ${rule.last_triggered_at ? formatDate(rule.last_triggered_at) : 'Never'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="editRule('${rule.id}')" class="text-primary hover:text-blue-400 text-sm mr-3">
+                            Edit
+                        </button>
+                        <button onclick="deleteRule('${rule.id}')" class="text-red-400 hover:text-red-300 text-sm">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Failed to load alert rules:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-red-400">
+                        Failed to load alert rules.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    async function loadAlertLogs() {
+        const tbody = document.getElementById('alerts-table');
+        const acknowledged = document.getElementById('filter-acknowledged').value;
+        
+        try {
+            let url = '/alerts/logs/';
+            if (acknowledged) {
+                url += `?acknowledged=${acknowledged}`;
+            }
+            
+            const data = await fetchAPI(url);
+            const alerts = data.results || data;
+            
+            // Update unacknowledged count
+            const unackCount = alerts.filter(a => !a.acknowledged).length;
+            document.getElementById('stat-unack-alerts').textContent = unackCount;
+            
+            if (alerts.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-slate-400">
+                            No alerts triggered yet. 🎉
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = alerts.map(alert => `
+                <tr class="hover:bg-slate-700/50 transition-colors ${!alert.acknowledged ? 'bg-yellow-500/5' : ''}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        ${alert.alert_rule_name}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-slate-300 max-w-md">
+                        ${alert.message}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-400">
+                        ${alert.metric_value.toFixed(2)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                        ${formatDate(alert.triggered_at)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            alert.acknowledged 
+                                ? 'bg-slate-600 text-slate-400' 
+                                : 'bg-yellow-500/20 text-yellow-400'
+                        }">
+                            ${alert.acknowledged ? 'Acknowledged' : 'Pending'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        ${!alert.acknowledged ? `
+                            <button onclick="acknowledgeAlert('${alert.id}')" class="text-primary hover:text-blue-400 text-sm">
+                                Acknowledge
+                            </button>
+                        ` : `
+                            <span class="text-sm text-slate-500">${formatDate(alert.acknowledged_at)}</span>
+                        `}
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Failed to load alert logs:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-red-400">
+                        Failed to load alert history.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function formatMetricType(type) {
+        const types = {
+            'error_rate': 'Error Rate',
+            'latency': 'Latency',
+            'token_spike': 'Token Spike',
+        };
+        return types[type] || type;
+    }
+    
+    function formatThreshold(type, value) {
+        if (type === 'error_rate') return value + '%';
+        if (type === 'latency') return value + 'ms';
+        if (type === 'token_spike') return value + 'x';
+        return value;
+    }
+    
+    function updateThresholdHint() {
+        const type = document.getElementById('rule-metric-type').value;
+        const hint = document.getElementById('threshold-hint');
+        
+        const hints = {
+            'error_rate': 'Alert triggers when error rate exceeds this percentage',
+            'latency': 'Alert triggers when P95 latency exceeds this value in milliseconds',
+            'token_spike': 'Alert triggers when token usage is N times the previous period',
+        };
+        
+        hint.textContent = hints[type] || '';
+    }
+    
+    function openCreateRuleModal() {
+        editingRuleId = null;
+        document.getElementById('modal-title').textContent = 'Create Alert Rule';
+        document.getElementById('rule-form').reset();
+        document.getElementById('rule-id').value = '';
+        document.getElementById('rule-active').checked = true;
+        document.getElementById('rule-modal').classList.remove('hidden');
+        updateThresholdHint();
+    }
+    
+    async function editRule(ruleId) {
+        editingRuleId = ruleId;
+        
+        try {
+            const rule = await fetchAPI(`/alerts/rules/${ruleId}/`);
+            
+            document.getElementById('modal-title').textContent = 'Edit Alert Rule';
+            document.getElementById('rule-id').value = rule.id;
+            document.getElementById('rule-name').value = rule.name;
+            document.getElementById('rule-description').value = rule.description || '';
+            document.getElementById('rule-metric-type').value = rule.metric_type;
+            document.getElementById('rule-threshold').value = rule.threshold;
+            document.getElementById('rule-active').checked = rule.is_active;
+            document.getElementById('rule-email').checked = rule.notify_email;
+            
+            document.getElementById('rule-modal').classList.remove('hidden');
+            updateThresholdHint();
+            
+        } catch (error) {
+            console.error('Failed to load rule:', error);
+            alert('Failed to load rule details.');
+        }
+    }
+    
+    function closeRuleModal() {
+        document.getElementById('rule-modal').classList.add('hidden');
+        editingRuleId = null;
+    }
+    
+    async function saveRule(e) {
+        e.preventDefault();
+        
+        const data = {
+            name: document.getElementById('rule-name').value,
+            description: document.getElementById('rule-description').value,
+            metric_type: document.getElementById('rule-metric-type').value,
+            threshold: parseFloat(document.getElementById('rule-threshold').value),
+            is_active: document.getElementById('rule-active').checked,
+            notify_email: document.getElementById('rule-email').checked,
+        };
+        
+        try {
+            if (editingRuleId) {
+                await fetch(`${API_BASE}/alerts/rules/${editingRuleId}/`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+            } else {
+                await fetch(`${API_BASE}/alerts/rules/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+            }
+            
+            closeRuleModal();
+            loadAlertRules();
+            
+        } catch (error) {
+            console.error('Failed to save rule:', error);
+            alert('Failed to save rule. Please try again.');
+        }
+    }
+    
+    async function deleteRule(ruleId) {
+        if (!confirm('Are you sure you want to delete this alert rule?')) {
+            return;
+        }
+        
+        try {
+            await fetch(`${API_BASE}/alerts/rules/${ruleId}/`, {
+                method: 'DELETE',
+            });
+            loadAlertRules();
+        } catch (error) {
+            console.error('Failed to delete rule:', error);
+            alert('Failed to delete rule.');
+        }
+    }
+    
+    async function acknowledgeAlert(alertId) {
+        try {
+            await fetch(`${API_BASE}/alerts/logs/${alertId}/acknowledge/`, {
+                method: 'POST',
+            });
+            loadAlertLogs();
+        } catch (error) {
+            console.error('Failed to acknowledge alert:', error);
+            alert('Failed to acknowledge alert.');
+        }
+    }
+    
+    // Event listeners
+    document.getElementById('rule-form').addEventListener('submit', saveRule);
+    document.getElementById('rule-metric-type').addEventListener('change', updateThresholdHint);
+    document.getElementById('filter-acknowledged').addEventListener('change', loadAlertLogs);
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeRuleModal();
+        }
+    });
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAlertRules();
+        loadAlertLogs();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+# Django and DRF
+Django>=5.0
+djangorestframework>=3.14
+django-cors-headers>=4.3
+
+# Environment variables
+python-dotenv>=1.0
+
+# HTTP requests (for Groq API)
+requests>=2.31
+
+# Production server (optional)
+gunicorn>=21.0
