@@ -1,9 +1,40 @@
+# Environment files
 .env
 .env.*
-_pycache_/
+!.env.example
+
+# Python
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# Database
 db.sqlite3
+*.db
+
+# Logs
 logs/*.log
+*.log
+
+# Virtual environments
 venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Static files (collected)
+staticfiles/
+
+# Vercel
+.vercel

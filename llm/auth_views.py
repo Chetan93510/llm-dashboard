@@ -31,7 +31,7 @@ def login_view(request):
             user = authenticate(request, username=user.username, password=password)
             
             if user is not None:
-                login(request, user)
+                login(request, user, backend='django.contrib.auth.backends.ModelBackend')
                 messages.success(request, 'Login successful!')
                 return redirect('/')
             else:
@@ -110,7 +110,7 @@ def signup_view(request):
                 user.save()
             
             # Log user in automatically
-            login(request, user)
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             messages.success(request, 'Account created successfully!')
             return redirect('/')
             
@@ -170,7 +170,7 @@ def verify_otp_view(request):
                 )
                 
                 # Login user
-                login(request, user)
+                login(request, user, backend='django.contrib.auth.backends.ModelBackend')
                 
                 # Clear session
                 request.session.pop('signup_email', None)
