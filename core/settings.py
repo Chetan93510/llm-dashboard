@@ -39,6 +39,22 @@ INSTALLED_APPS = [
 'llm',
 ]
 
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',  # 🔥 IMPORTANT
+
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'llm.middleware.UserIDMiddleware',  # agar ye file exist karti hai
+]
+
 
 
 
@@ -90,15 +106,54 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 
-DATABASES = {
-'default': {
-'ENGINE': os.getenv('DB_ENGINE'),
-'NAME': os.getenv('DB_NAME'),
-'USER': os.getenv('DB_USER'),
-'PASSWORD': os.getenv('DB_PASSWORD'),
-'HOST': os.getenv('DB_HOST'),
-'PORT': os.getenv('DB_PORT'),
-}
+# Database Configuration
+DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+DB_NAME = os.getenv('DB_NAME', BASE_DIR / 'db.sqlite3')
+
+if 'sqlite3' in DB_ENGINE:
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': DB_NAME if isinstance(DB_NAME, Path) else BASE_DIR / DB_NAME,
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': DB_NAME,
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
+        }
+    }
+
+# ============================================
+# Groq API Configuration
+# ============================================
+
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_API_BASE_URL = os.getenv(
+    'GROQ_API_BASE_URL',
+    'https://api.groq.com/openai/v1'
+)
+
+GROQ_DEFAULT_MODEL = os.getenv(
+    'GROQ_DEFAULT_MODEL',
+    'llama-3.3-70b-versatile'
+)
+
+# Token pricing per 1M tokens (input/output) for cost estimation
+LLM_TOKEN_PRICING = {
+    'llama-3.3-70b-versatile': {'input': 0.59, 'output': 0.79},
+    'llama-3.1-70b-versatile': {'input': 0.59, 'output': 0.79},
+    'llama-3.1-8b-instant': {'input': 0.05, 'output': 0.08},
+    'llama3-70b-8192': {'input': 0.59, 'output': 0.79},
+    'llama3-8b-8192': {'input': 0.05, 'output': 0.08},
+    'mixtral-8x7b-32768': {'input': 0.24, 'output': 0.24},
+    'gemma2-9b-it': {'input': 0.20, 'output': 0.20},
+    'default': {'input': 0.50, 'output': 0.50},
 }
 
 
